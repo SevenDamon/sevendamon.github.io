@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>科学单元闯关：全真模拟卷</title>
+    <style>
+        /* ================== 样式表 (保持原样) ================== */
+        :root { --primary-color: #00BCD4; --accent-color: #FF9800; --bg-color: #E0F7FA; --card-bg: #FFFFFF; --correct-color: #4CAF50; --wrong-color: #F44336; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; color: #333; padding: 20px 0; }
+        .container { width: 90%; max-width: 800px; background: var(--card-bg); border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; margin-bottom: 50px; }
+        header { background: var(--primary-color); color: white; padding: 20px; text-align: center; font-size: 1.5em; font-weight: bold; }
+        .progress-bar { height: 10px; background: rgba(255,255,255,0.3); margin-top: 10px; border-radius: 5px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.3s ease; }
+        .game-area { padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        canvas { background: #fff; border: 2px dashed #ccc; border-radius: 10px; margin-bottom: 20px; display: none; max-width: 100%; }
+        .question-text { font-size: 1.2em; margin-bottom: 20px; line-height: 1.6; text-align: center; font-weight: 500; }
+        .options-grid { display: grid; grid-template-columns: 1fr; gap: 15px; width: 100%; }
+        @media(min-width: 600px) { .options-grid { grid-template-columns: 1fr 1fr; } }
+        .option-btn { background: #f9f9f9; border: 2px solid #e0e0e0; padding: 15px; border-radius: 12px; cursor: pointer; font-size: 1.05em; transition: all 0.2s; text-align: left; position: relative; }
+        .option-btn:hover { background: #e0f7fa; border-color: var(--primary-color); }
+        .option-btn.selected { background: #B2EBF2; border-color: #00838F; font-weight: bold; }
+        .next-btn { margin-top: 30px; padding: 12px 40px; background: var(--accent-color); color: #fff; font-weight: bold; border: none; border-radius: 25px; font-size: 1.1em; cursor: pointer; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .next-btn:hover { background: #f57c00; transform: scale(1.05); }
+        
+        .result-screen { display: none; padding: 20px; background: #fdfdfd; }
+        .score-header { text-align: center; padding-bottom: 20px; border-bottom: 2px solid #eee; margin-bottom: 20px; }
+        .final-score { font-size: 3em; color: var(--primary-color); font-weight: bold; }
+        .score-comment { color: #666; margin-top: 10px; }
+        .review-list { display: flex; flex-direction: column; gap: 20px; }
+        .review-item { border: 1px solid #eee; border-radius: 10px; padding: 15px; background: #fff; }
+        .review-item.wrong { border-left: 5px solid var(--wrong-color); }
+        .review-item.correct { border-left: 5px solid var(--correct-color); }
+        .review-q-title { font-weight: bold; margin-bottom: 10px; }
+        .review-status { font-size: 0.9em; margin-bottom: 5px; }
+        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; color: white; font-size: 0.8em; margin-right: 10px; }
+        .badge-correct { background: var(--correct-color); }
+        .badge-wrong { background: var(--wrong-color); }
+        .review-detail { font-size: 0.9em; color: #555; background: #f5f5f5; padding: 10px; border-radius: 5px; margin-top: 10px; }
+        .answer-compare { margin-bottom: 5px; }
+        .correct-text { color: var(--correct-color); font-weight: bold; }
+        .wrong-text { color: var(--wrong-color); font-weight: bold; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(3px); }
+        .modal-card { background: white; padding: 30px; border-radius: 15px; width: 85%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .form-group { margin: 15px 0; text-align: left; }
+        .form-label { font-size: 0.9em; color: #666; margin-bottom: 5px; display: block; font-weight: bold;}
+        .input-field { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1.1em; outline: none; transition: 0.3s; box-sizing: border-box; }
+        .input-field:focus { border-color: var(--primary-color); }
+        select.input-field { background-color: white; }
+        .start-btn { background: var(--primary-color); color: white; padding: 12px 40px; border: none; border-radius: 25px; font-size: 1.1em; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px;}
+        .upload-status { margin-top: 15px; font-size: 0.95em; color: #666; padding: 10px; background: #f5f5f5; border-radius: 8px; }
+        
+        /* 这里的再测一次按钮容器已被移除 */
+        .restart-btn-container { display: none; } 
+    </style>
+</head>
+<body>
+
+<div class="modal-overlay" id="login-modal">
+    <div class="modal-card">
+        <h2>👋 欢迎来到科学闯关</h2>
+        <p style="color:#666; margin-bottom:20px;">请填写信息，开始挑战吧！</p>
+        <div class="form-group">
+            <label class="form-label">选择班级：</label>
+            <select id="student-class" class="input-field">
+                <option value="" disabled selected>-- 请点击选择 --</option>
+                <option value="三（1）班">三（1）班</option>
+                <option value="三（2）班">三（2）班</option>
+                <option value="三（3）班">三（3）班</option>
+                <option value="三（4）班">三（4）班</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">你的名字：</label>
+            <input type="text" id="student-name" class="input-field" placeholder="例如：张小明" />
+        </div>
+        <button class="start-btn" onclick="startGame()">🚀 开始挑战</button>
+    </div>
+</div>
+
+<div class="container">
+    <header>
+        <div>📝 科学单元模拟闯关</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+    </header>
+
+    <div class="game-area" id="game-area">
+        <canvas id="questionCanvas" width="400" height="220"></canvas>
+        <div class="question-text" id="question-text">加载中...</div>
+        <div class="options-grid" id="options-container"></div>
+        <button class="next-btn" id="next-btn" onclick="nextQuestion()">确定，下一题</button>
+    </div>
+
+    <div class="result-screen" id="result-screen">
+        <div class="score-header">
+            <div style="background:#FFF3E0; color:#E65100; padding:10px; border-radius:8px; margin-bottom:15px; font-size:0.9em; display:none;" id="already-submitted-msg">⚠️ 您已完成本次考试，以下是您的成绩单</div>
+            
+            <div>
+                <span style="background:#E0F7FA; padding:2px 8px; border-radius:4px; font-size:0.8em; color:#006064;" id="player-class-display"></span> 
+                <span id="player-name-display"></span> 的成绩：
+            </div>
+            <div class="final-score" id="final-score-display">0</div>
+            <div class="score-comment" id="score-comment"></div>
+            <div class="upload-status" id="upload-status">⏳ 正在计算分数...</div>
+        </div>
+        <h3>📊 详细“体检报告”</h3>
+        <div class="review-list" id="review-list"></div>
+        
+        </div>
+</div>
+
+<script>
+// =========================================================
+// ⚠️ 必填配置区：请填入飞书开放平台的信息 ⚠️
+// =========================================================
+
+// 1. 飞书自建应用的 App ID (cli_ 开头)
+const APP_ID = "cli_a9b7a11e88b8dccd"; 
+
+// 2. 飞书自建应用的 App Secret
+const APP_SECRET = "KUq1vkGP1QHUAq6FCA7W5baEqRmoUCvb"; 
+
+// 3. 多维表格的 App Token (浏览器地址栏 base/ 后面的字符串)
+const BITABLE_APP_TOKEN = "DxwzbJ3jtajSxOsOH3Nc3tixnjL"; 
+
+// 4. 数据表的 Table ID (浏览器地址栏 table= 后面的字符串)
+const BITABLE_TABLE_ID = "tbl3JDZDBfR9LdEg"; 
+
+// 代理地址 (解决浏览器跨域问题)
+const PROXY_URL = "https://corsproxy.io/?";
+
+// =========================================================
+
+let playerName = "";
+let playerClass = ""; 
+let currentQIndex = 0;
+let userAnswers = [];
+
+const questions = [
+    { q: "【观察分析】小明想比较水、牛奶和洗洁精谁流得最快，他在倾斜的玻璃板上进行比赛。这主要是在比较液体的什么特征？", options: ["A. 颜色", "B. 气味", "C. 黏度 (流动性)", "D. 透明度"], answer: 2, level: "分析", explanation: "不同液体的黏度不同，越黏稠的液体流动速度通常越慢。", type: "normal" },
+    { q: "【生活应用】盲盒猜物：摸起来硬硬的，捏不动，而且不管放在哪里形状都不会变。它最可能是什么？", options: ["A. 气球里的空气", "B. 木头积木", "C. 袋装牛奶", "D. 牙膏"], answer: 1, level: "记忆", explanation: "这是固体的典型特征：有固定的形状和体积，质地较硬。", type: "normal" },
+    { q: "【实验读数】请仔细观察量筒中的水面（如上图）。正确的读数应该是多少？", options: ["A. 38ml", "B. 40ml", "C. 42ml", "D. 50ml"], answer: 1, level: "应用", explanation: "读数法则：视线要与凹液面的最低处保持水平。图中液面最低处正好对准40ml刻度线。", type: "cylinder", drawingParam: { level: 40 } },
+    { q: "【科学推断】皮球打足气后会变得更重一点，这说明了空气具有什么特点？", options: ["A. 空气是透明的", "B. 空气有质量", "C. 空气会流动", "D. 空气有弹性"], answer: 1, level: "理解", explanation: "虽然空气很轻，但它也是物质，具有质量。打入更多空气，质量自然增加。", type: "normal" },
+    { q: "【实验分析】用力推注射器的活塞，如果是空气很容易被压缩，如果是水则很难。这说明：", options: ["A. 空气微粒间隙大，易被压缩", "B. 水比空气重", "C. 水是有颜色的", "D. 只有空气占据空间"], answer: 0, level: "分析", explanation: "气体的微粒间距大，容易被挤压；液体的微粒间距很小，难以被压缩。", type: "syringe", drawingParam: { compressed: true } },
+    { q: "【概念辨析】把一杯水倒入各种不同形状的瓶子里，水的什么发生了变化？", options: ["A. 体积", "B. 质量", "C. 形状", "D. 都没有变"], answer: 2, level: "理解", explanation: "液体“无固定形状”，形状随容器而变；但“有固定体积”，多少不会变。", type: "normal" },
+    { q: "【物质变化】将一勺白糖放入水中搅拌，过一会儿白糖“不见了”，这说明白糖？（如上图示意）", options: ["A. 蒸发了", "B. 沉到水底了", "C. 在水中溶解了", "D. 变成了水"], answer: 2, level: "理解", explanation: "白糖并没有消失，而是变成了极小的微粒均匀分散在水中，这种现象叫溶解。", type: "dissolve", drawingParam: {} },
+    { q: "【问题解决】如果不小心把木屑混进了沙子里，利用水可以把它们分离开（如上图），这是因为？", options: ["A. 木屑会溶解在水里", "B. 沙子会浮在水面上", "C. 木屑浮在水面，沙子沉在水底", "D. 只有用热水才行"], answer: 2, level: "应用", explanation: "利用浮沉性质的不同：木头密度小浮于水面，沙石密度大沉入水底，从而实现分离。", type: "separation", drawingParam: {} },
+    { q: "【生活应用】如果绿豆里不小心混进了面粉，我们可以用什么工具把它们快速分开？利用了什么原理？", options: ["A. 磁铁（利用是否有磁性）", "B. 筛子（利用颗粒大小不同）", "C. 水（利用是否溶解）", "D. 晒太阳（利用蒸发）"], answer: 1, level: "创造", explanation: "面粉颗粒很小，绿豆颗粒很大。利用筛子（网格），小的面粉漏下去，大的绿豆留在上面。", type: "sieve", drawingParam: {} },
+    { q: "【实验工具】天平指针向左偏（如上图），要让天平平衡，应该怎么做？", options: ["A. 调节左端的平衡螺母向左", "B. 向右盘添加砝码或游码右移", "C. 增加左盘的物体", "D. 用手托一下"], answer: 1, level: "应用", explanation: "左偏说明左边重。需要在轻的一边（右边）增加重量（砝码/游码）来平衡。", type: "balance", drawingParam: { tilt: -1 } },
+    { q: "【逻辑判断】下面哪一组物体都属于“液体”？", options: ["A. 水、牛奶、酱油", "B. 石头、木块、沙子", "C. 空气、氧气、水蒸气", "D. 水、冰、可乐"], answer: 0, level: "分析", explanation: "A组全为液体；B组为固体；C组为气体；D组中冰是固体。", type: "normal" },
+    { q: "【实验计算】量筒里有30ml水，放入一个石块后水位升到55ml（如上图）。石块体积是多少？", options: ["A. 85ml", "B. 55ml", "C. 25ml", "D. 30ml"], answer: 2, level: "应用", explanation: "排水法测体积：55 - 30 = 25ml。物体排开的水的体积等于物体本身的体积。", type: "displacement", drawingParam: { start: 30, end: 55 } },
+    { q: "【高阶思维】如果要运送一袋空气，你会选择下面哪种容器？", options: ["A. 纸袋子", "B. 密封的塑料袋", "C. 网兜", "D. 敞口的篮子"], answer: 1, level: "评价", explanation: "气体容易扩散（流动性），必须用密封容器才能装住，否则会跑掉。", type: "normal" },
+    { q: "【实验探究】乌鸦喝水的故事里，乌鸦把石子投入瓶中，水位上升了。这说明固体？", options: ["A. 能溶解", "B. 占据空间", "C. 只要是石头就会浮起来", "D. 比水轻"], answer: 1, level: "理解", explanation: "固体也有体积，会占据空间，把水“挤”了上来。", type: "normal" },
+    { q: "【工具匹配】我们要测量物体的“体积”（占据空间的大小），应该选择图中的哪个工具？", options: ["A. 工具① (天平)", "B. 工具② (直尺)", "C. 工具③ (量筒)", "D. 都可以"], answer: 2, level: "分析", explanation: "天平测质量，直尺测长度，量筒（或量杯）才是测量液体或不规则固体体积的工具。", type: "tools", drawingParam: {} }
+];
+
+const canvas = document.getElementById('questionCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- 🔒 防刷题逻辑：页面加载时检查是否已提交 ---
+window.onload = function() {
+    const savedData = localStorage.getItem('science_exam_result');
+    if (savedData) {
+        // 如果本地有记录，直接显示结果页，不显示登录弹窗
+        try {
+            const result = JSON.parse(savedData);
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('game-area').style.display = 'none';
+            
+            // 恢复显示数据
+            playerName = result.name;
+            playerClass = result.class;
+            
+            // 渲染之前的错题报告
+            const reviewList = document.getElementById('review-list');
+            reviewList.innerHTML = result.reviewHtml;
+            
+            document.getElementById('player-class-display').textContent = result.class;
+            document.getElementById('player-name-display').textContent = result.name;
+            document.getElementById('final-score-display').textContent = `${result.score} / ${questions.length}`;
+            document.getElementById('score-comment').textContent = result.comment;
+            
+            // 显示已提交提示
+            document.getElementById('result-screen').style.display = 'block';
+            document.getElementById('already-submitted-msg').style.display = 'block';
+            document.getElementById('upload-status').innerHTML = "✅ 历史成绩已读取（无需重复提交）";
+            document.getElementById('upload-status').style.color = "green";
+            
+        } catch(e) {
+            // 如果数据损坏，清除重来
+            localStorage.removeItem('science_exam_result');
+        }
+    }
+};
+
+function startGame() {
+    const classInput = document.getElementById('student-class');
+    const nameInput = document.getElementById('student-name');
+    if (!classInput.value) { alert("请先选择你是哪个班级的同学哦！"); return; }
+    if (!nameInput.value.trim()) { alert("请告诉老师你的名字，方便记录成绩！"); return; }
+    playerClass = classInput.value;
+    playerName = nameInput.value.trim();
+    document.getElementById('login-modal').style.display = 'none';
+    initGame();
+}
+
+function initGame() {
+    currentQIndex = 0; userAnswers.fill(-1);
+    document.getElementById('result-screen').style.display = 'none';
+    document.getElementById('game-area').style.display = 'flex';
+    loadQuestion();
+}
+
+function loadQuestion() {
+    const qData = questions[currentQIndex];
+    document.getElementById('question-text').innerHTML = `<span style="color:#00BCD4; font-size:0.9em; font-weight:bold;">第 ${currentQIndex + 1} / ${questions.length} 题</span><br>${qData.q}`;
+    document.getElementById('progress').style.width = `${((currentQIndex) / questions.length) * 100}%`;
+    document.getElementById('next-btn').style.display = 'none';
+    renderCanvas(qData);
+    const optionsContainer = document.getElementById('options-container');
+    optionsContainer.innerHTML = '';
+    qData.options.forEach((opt, index) => {
+        const btn = document.createElement('div');
+        btn.className = 'option-btn';
+        btn.textContent = opt;
+        if (userAnswers[currentQIndex] === index) btn.classList.add('selected');
+        btn.onclick = () => selectOption(index, btn);
+        optionsContainer.appendChild(btn);
+    });
+}
+
+function selectOption(index, btnElement) {
+    document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
+    btnElement.classList.add('selected');
+    userAnswers[currentQIndex] = index;
+    const nextBtn = document.getElementById('next-btn');
+    nextBtn.style.display = 'inline-block';
+    if (currentQIndex === questions.length - 1) {
+        nextBtn.textContent = "提交试卷";
+        nextBtn.style.backgroundColor = "#4CAF50";
+    } else {
+        nextBtn.textContent = "确定，下一题";
+        nextBtn.style.backgroundColor = "";
+    }
+}
+
+function nextQuestion() {
+    currentQIndex++;
+    if (currentQIndex < questions.length) loadQuestion();
+    else calculateAndShowResult();
+}
+
+function calculateAndShowResult() {
+    document.getElementById('game-area').style.display = 'none';
+    const resultScreen = document.getElementById('result-screen');
+    resultScreen.style.display = 'block';
+    
+    let score = 0;
+    let mistakeTextList = [];
+    const reviewList = document.getElementById('review-list');
+    reviewList.innerHTML = ''; // Clear previous
+
+    questions.forEach((q, idx) => {
+        const userChoiceIdx = userAnswers[idx];
+        const isCorrect = (userChoiceIdx === q.answer);
+        if (isCorrect) {
+            score++;
+        } else {
+            const userOpt = q.options[userChoiceIdx] || "未作答";
+            const correctOpt = q.options[q.answer];
+            mistakeTextList.push(`【第${idx+1}题】\n❓ ${q.q}\n❌ 误选：${userOpt}\n✅ 正解：${correctOpt}`);
+        }
+        const item = document.createElement('div');
+        item.className = `review-item ${isCorrect ? 'correct' : 'wrong'}`;
+        let statusBadge = isCorrect ? '<span class="status-badge badge-correct">✅ 正确</span>' : '<span class="status-badge badge-wrong">❌ 错误</span>';
+        let compareHtml = isCorrect ? 
+            `<div class="answer-compare"><span class="correct-text">你的选择: ${q.options[userChoiceIdx]}</span></div>` : 
+            `<div class="answer-compare"><span class="wrong-text">你的选择: ${q.options[userChoiceIdx]}</span><br><span class="correct-text">正确答案: ${q.options[q.answer]}</span></div>`;
+        item.innerHTML = `<div class="review-status">${statusBadge} 第 ${idx+1} 题</div><div class="review-q-title">${q.q.replace(/如上图/, '见题图')}</div><div class="review-detail">${compareHtml}<div style="margin-top:8px; border-top:1px dashed #ccc; padding-top:5px;"><strong>💡 老师解析：</strong>${q.explanation}</div></div>`;
+        reviewList.appendChild(item);
+    });
+
+    document.getElementById('player-class-display').textContent = playerClass;
+    document.getElementById('player-name-display').textContent = playerName;
+    document.getElementById('final-score-display').textContent = `${score} / ${questions.length}`;
+    
+    const percent = score / questions.length;
+    let comment = percent === 1 ? "完美！你的科学基础非常扎实！🎉" : (percent >= 0.8 ? "成绩优秀！请重点查看下方的错题解析。👍" : (percent >= 0.6 ? "及格了，但基础概念还有些模糊。💪" : "需要加油哦！建议复习课本后再来挑战。📚"));
+    document.getElementById('score-comment').textContent = comment;
+    
+    let mistakesString = mistakeTextList.length > 0 ? mistakeTextList.join("\n----------------------\n") : "无（满分）";
+    
+    // --- 🔒 保存到本地，防止重复提交 ---
+    localStorage.setItem('science_exam_result', JSON.stringify({
+        submitted: true,
+        name: playerName,
+        class: playerClass,
+        score: score,
+        comment: comment,
+        reviewHtml: reviewList.innerHTML // 保存生成的HTML以便回显
+    }));
+
+    uploadToFeishu(score, mistakesString);
+}
+
+async function uploadToFeishu(score, mistakesString) {
+    const statusDiv = document.getElementById('upload-status');
+    
+    if (APP_ID.includes("cli_xxxx")) {
+        statusDiv.innerHTML = "⚠️ 请配置 APP_ID 和 SECRET";
+        statusDiv.style.color = "orange";
+        return;
+    }
+
+    try {
+        statusDiv.innerHTML = "⏳ 正在连接飞书服务器...";
+        
+        const authUrl = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
+        const authRes = await fetch(PROXY_URL + encodeURIComponent(authUrl), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ "app_id": APP_ID, "app_secret": APP_SECRET })
+        });
+        
+        const authData = await authRes.json();
+        if (authData.code !== 0) throw new Error("认证失败: " + (authData.msg || "未知错误"));
+        const token = authData.tenant_access_token;
+
+        statusDiv.innerHTML = "⏳ 正在保存成绩...";
+        const tableUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${BITABLE_APP_TOKEN}/tables/${BITABLE_TABLE_ID}/records`;
+        
+        const recordRes = await fetch(PROXY_URL + encodeURIComponent(tableUrl), {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "fields": {
+                    "class_name": playerClass,
+                    "name": playerName,
+                    "score": score,
+                    "mistakes": mistakesString
+                }
+            })
+        });
+
+        const recordData = await recordRes.json();
+        if (recordData.code === 0) {
+            statusDiv.innerHTML = "✅ 成绩已成功上传！";
+            statusDiv.style.color = "green";
+        } else {
+            throw new Error("写入失败: " + (recordData.msg || "未知错误"));
+        }
+
+    } catch (err) {
+        console.error("Upload Error:", err);
+        statusDiv.innerHTML = "❌ 上传慢或失败，请截图发给老师（可能是网络波动）";
+        statusDiv.style.color = "red";
+    }
+}
+
+function renderCanvas(qData){ctx.clearRect(0,0,canvas.width,canvas.height);canvas.style.display='none';if(qData.type==='normal')return;canvas.style.display='block';ctx.strokeStyle='#f5f5f5';ctx.lineWidth=1;ctx.beginPath();for(let i=0;i<canvas.width;i+=20){ctx.moveTo(i,0);ctx.lineTo(i,canvas.height)}for(let i=0;i<canvas.height;i+=20){ctx.moveTo(0,i);ctx.lineTo(canvas.width,i)}ctx.stroke();switch(qData.type){case'cylinder':drawCylinder(qData.drawingParam.level);break;case'syringe':drawSyringe();break;case'balance':drawBalance(qData.drawingParam.tilt);break;case'displacement':drawDisplacement(qData.drawingParam.start,qData.drawingParam.end);break;case'dissolve':drawDissolve();break;case'separation':drawSeparation();break;case'sieve':drawSieve();break;case'tools':drawTools();break}}
+function drawCylinder(l){const x=160,y=20,w=80,h=180;ctx.fillStyle='#fff';ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);let t=(y+h)-(l*(h/50)),ry=6,cy=t-ry;ctx.fillStyle='#4FC3F7';ctx.fillRect(x+1,cy,w-2,(y+h)-cy);ctx.fillStyle='#E1F5FE';ctx.beginPath();ctx.ellipse(x+w/2,cy,w/2-1,ry,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#4FC3F7';ctx.stroke();ctx.fillStyle='#333';ctx.font="14px Arial";ctx.textAlign="right";for(let i=10;i<=50;i+=10){let ty=(y+h)-(i*(h/50));ctx.beginPath();ctx.moveTo(x,ty);ctx.lineTo(x+20,ty);ctx.stroke();ctx.fillText(i+"ml",x-5,ty+5);if(i===l){ctx.save();ctx.strokeStyle='red';ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(x,ty);ctx.lineTo(x+w,ty);ctx.stroke();ctx.restore();}}}
+function drawSieve(){ctx.strokeStyle='#795548';ctx.lineWidth=4;ctx.strokeRect(100,100,200,20);ctx.lineWidth=1;ctx.beginPath();for(let i=100;i<=300;i+=10){ctx.moveTo(i,100);ctx.lineTo(i,120)}for(let i=100;i<=120;i+=5){ctx.moveTo(100,i);ctx.lineTo(300,i)}ctx.stroke();ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(300,110);ctx.lineTo(360,110);ctx.stroke();ctx.fillStyle='#4CAF50';for(let i=0;i<8;i++){ctx.beginPath();ctx.arc(120+Math.random()*160,90+Math.random()*10,6,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#FFF9C4';for(let i=0;i<30;i++){ctx.beginPath();ctx.arc(110+Math.random()*180,130+Math.random()*50,1.5,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#333';ctx.textAlign="center";ctx.fillText("绿豆(大)留在上面",200,60);ctx.fillText("面粉(小)漏下来",200,200)}
+function drawSyringe(){ctx.strokeStyle='#555';ctx.lineWidth=3;ctx.strokeRect(100,70,180,80);ctx.fillStyle='#ddd';ctx.fillRect(240,75,30,70);ctx.fillStyle='#B3E5FC';ctx.fillRect(100,72,140,76);ctx.fillStyle='#0277BD';for(let i=0;i<15;i++){ctx.beginPath();ctx.arc(120+Math.random()*100,80+Math.random()*60,3,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#FFCCBC';ctx.beginPath();ctx.arc(300,110,25,0,Math.PI*2);ctx.fill();ctx.fillStyle='#333';ctx.font="16px Arial";ctx.textAlign="center";ctx.fillText("用力推 ->",250,50)}
+function drawDissolve(){ctx.strokeStyle='#333';ctx.lineWidth=3;ctx.strokeRect(140,40,120,140);ctx.fillStyle='#E1F5FE';ctx.fillRect(142,80,116,98);ctx.strokeStyle='#aaa';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(250,20);ctx.lineTo(200,100);ctx.stroke();ctx.fillStyle='#888';for(let i=0;i<50;i++){ctx.beginPath();ctx.arc(150+Math.random()*100,90+Math.random()*80,1.5,0,Math.PI*2);ctx.fill()}ctx.fillStyle='#333';ctx.fillText("搅拌后...",200,200)}
+function drawSeparation(){ctx.strokeStyle='#333';ctx.lineWidth=3;ctx.strokeRect(140,40,120,140);ctx.fillStyle='#E1F5FE';ctx.fillRect(142,70,116,108);ctx.fillStyle='#8D6E63';for(let i=0;i<15;i++){ctx.fillRect(150+Math.random()*100,75+Math.random()*10,8,4)}ctx.fillStyle='#9E9E9E';for(let i=0;i<30;i++){ctx.beginPath();ctx.arc(145+Math.random()*110,170+Math.random()*8,2,0,Math.PI*2);ctx.fill()}}
+function drawBalance(t){ctx.save();ctx.fillStyle='#455A64';ctx.fillRect(190,150,20,50);ctx.fillRect(150,200,100,10);ctx.translate(200,150);ctx.rotate(t*0.2);ctx.fillStyle='#CFD8DC';ctx.fillRect(-120,-5,240,10);ctx.strokeStyle='#455A64';ctx.beginPath();ctx.moveTo(-115,-5);ctx.lineTo(-115,30);ctx.moveTo(-115,30);ctx.lineTo(-135,50);ctx.lineTo(-95,50);ctx.lineTo(-115,30);ctx.moveTo(115,-5);ctx.lineTo(115,30);ctx.moveTo(115,30);ctx.lineTo(95,50);ctx.lineTo(135,50);ctx.lineTo(115,30);ctx.stroke();ctx.fillStyle='red';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(-5,30);ctx.lineTo(5,30);ctx.fill();ctx.restore()}
+function drawDisplacement(s,e){ctx.font="14px Arial";ctx.textAlign="center";ctx.strokeStyle='#555';ctx.strokeRect(80,60,50,120);let h1=(s/100)*120;ctx.fillStyle='#4FC3F7';ctx.fillRect(80,180-h1,50,h1);ctx.fillStyle='#333';ctx.fillText("30ml",105,50);ctx.strokeRect(270,60,50,120);let h2=(e/100)*120;ctx.fillStyle='#4FC3F7';ctx.fillRect(270,180-h2,50,h2);ctx.fillStyle='#5D4037';ctx.beginPath();ctx.arc(295,170,15,0,Math.PI*2);ctx.fill();ctx.fillStyle='#333';ctx.fillText("55ml",295,50);ctx.beginPath();ctx.moveTo(150,120);ctx.lineTo(250,120);ctx.lineTo(240,110);ctx.moveTo(250,120);ctx.lineTo(240,130);ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.stroke();ctx.fillText("+ 石头",200,110)}
+function drawTools(){ctx.fillStyle='#333';ctx.textAlign="center";ctx.font="14px Arial";ctx.fillText("①",80,40);ctx.fillStyle='#90A4AE';ctx.fillRect(50,140,60,5);ctx.fillRect(78,100,4,40);ctx.fillRect(50,100,60,4);ctx.fillStyle='#333';ctx.fillText("②",200,40);ctx.fillStyle='#FFCC80';ctx.fillRect(190,60,20,100);ctx.strokeStyle='#333';ctx.lineWidth=1;for(let i=0;i<10;i++){ctx.beginPath();ctx.moveTo(205,70+i*10);ctx.lineTo(210,70+i*10);ctx.stroke()}ctx.fillStyle='#333';ctx.fillText("③",320,40);ctx.strokeStyle='#555';ctx.lineWidth=2;ctx.strokeRect(300,80,40,80);ctx.fillStyle='#4FC3F7';ctx.fillRect(300,120,40,40)}
+</script>
+</body>
+</html>
